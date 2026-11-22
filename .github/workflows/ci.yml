@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: shellcheck -x -S warning ./*.sh vm/*.sh vm/templates/*.sh
+
+      - name: render cloud-init (no VirtualBox needed)
+        run: |
+          export AILAB_STATE_DIR="$RUNNER_TEMP/ailab-state"
+          mkdir -p "$AILAB_STATE_DIR"
+          ./ailab-setup.sh --render "$RUNNER_TEMP/render"
+          test -s "$RUNNER_TEMP/render/user-data"
+
+      - name: yamllint (rendered user-data and workflow templates)
+        run: |
+          pipx run yamllint -d '{extends: relaxed, rules: {line-length: disable}}' \
+            "$RUNNER_TEMP/render/user-data" vm/templates/*.yml vm/templates/pre-commit-config.yaml .github/workflows

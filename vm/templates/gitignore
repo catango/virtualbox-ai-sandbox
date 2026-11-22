@@ -1,0 +1,22 @@
+# OpenTofu / Terraform (commit .terraform.lock.hcl, never state)
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!example.tfvars
+tfplan
+
+# Secrets
+.env
+*.pem
+*.key
+.vault_pass*
+id_*
+
+# Ansible
+*.retry
+
+# Build output
+dist/
+release-*/

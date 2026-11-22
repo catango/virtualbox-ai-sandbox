@@ -1,0 +1,58 @@
+name: release
+
+# Builds a verified, checksummed, provenance-attested bundle of the provisioning
+# code. Nothing is applied here: no cloud credentials live in GitHub.
+# The operator fetches and applies it elsewhere (tools/operator-fetch.sh).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write        # create the GitHub release
+      id-token: write        # build provenance (sigstore)
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: opentofu/setup-opentofu@v1
+        if: hashFiles('tofu/**/*.tf') != ''
+      - name: Validate
+        if: hashFiles('tofu/**/*.tf') != ''
+        run: |
+          tofu -chdir=tofu init -backend=false -input=false
+          tofu -chdir=tofu validate
+
+      - name: Build bundle
+        run: |
+          version="${GITHUB_REF_NAME}"
+          [[ "$GITHUB_REF_TYPE" == tag ]] || version="dev-${GITHUB_SHA::7}"
+          dirs=()
+          for d in tofu ansible tools; do [[ -d "$d" ]] && dirs+=("$d"); done
+          mkdir dist
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+              --exclude='.terraform' -czf "dist/bundle-${version}.tar.gz" "${dirs[@]}"
+          (cd dist && sha256sum bundle-*.tar.gz > SHA256SUMS)
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/bundle-*.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle
+          path: dist/*
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag

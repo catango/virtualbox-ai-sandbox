@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          mapfile -t files < <(git ls-files '*.sh')
+          if ((${#files[@]})); then shellcheck "${files[@]}"; fi
+
+      # --- OpenTofu ---------------------------------------------------------
+      - uses: opentofu/setup-opentofu@v1
+        if: hashFiles('tofu/**/*.tf') != ''
+      - name: tofu fmt / validate
+        if: hashFiles('tofu/**/*.tf') != ''
+        run: |
+          tofu -chdir=tofu fmt -check -recursive
+          tofu -chdir=tofu init -backend=false -input=false
+          tofu -chdir=tofu validate
+      - uses: terraform-linters/setup-tflint@v4
+        if: hashFiles('tofu/**/*.tf') != ''
+      - name: tflint
+        if: hashFiles('tofu/**/*.tf') != ''
+        run: |
+          tflint --chdir=tofu --init
+          tflint --chdir=tofu
+
+      # --- Ansible ----------------------------------------------------------
+      - name: ansible-lint
+        if: hashFiles('ansible/**/*.yml', 'ansible/**/*.yaml') != ''
+        run: pipx run ansible-lint ansible/

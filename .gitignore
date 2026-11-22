@@ -1,0 +1,13 @@
+# local overrides and state (keys, images, VM files)
+ailab.local.conf
+.ailab/
+build.*/
+
+# never commit keys or disk images
+id_*
+*.pem
+*.key
+*.vdi
+*.iso
+*.qcow2
+*.raw
