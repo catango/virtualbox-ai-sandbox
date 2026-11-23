@@ -69,6 +69,34 @@ Host ailab
 Notes: the Claude Code machine needs a login on the VM host (key-based) but never the VM's admin key. After
 `ailab-destroy.sh` + `ailab-setup.sh` the VM gets new host keys, so run `ssh-keygen -R "[127.0.0.1]:3333"` on the client.
 
+## Admin login (from the VM host)
+
+The `ailab` user has passwordless sudo and is for maintenance only (e.g. `sudo apt-get upgrade`). Log in from the
+VM host (the Debian machine running VirtualBox) with the key that setup created:
+
+```bash
+ssh -i ~/.ailab/id_ed25519 -p 3333 -o IdentitiesOnly=yes -o UserKnownHostsFile=~/.ailab/known_hosts ailab@127.0.0.1
+```
+
+Or add this to `~/.ssh/config` on the VM host and use `ssh ailab-admin`:
+
+```
+Host ailab-admin
+  HostName 127.0.0.1
+  Port 3333
+  User ailab
+  IdentityFile ~/.ailab/id_ed25519
+  IdentitiesOnly yes
+  UserKnownHostsFile ~/.ailab/known_hosts
+```
+
+- The port is `SSH_PORT` in `ailab.conf` (default 3333). For day-to-day work use the `claude` user (no sudo).
+- Password login is disabled for both users; only keys work.
+- The admin key never leaves the VM host. From another machine, log in to the VM host first.
+- If SSH is unreachable, `VBoxManage startvm ailab --type gui` opens the console for boot diagnostics
+  (there is no password to log in with).
+- Changes made as `ailab` are lost on `ailab-reset.sh`, like everything else in the VM.
+
 ## Workflow
 
 Inside the lab (as `claude`):
